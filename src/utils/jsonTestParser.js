@@ -72,6 +72,68 @@ export function parseCustomJSONTest(json) {
   };
 }
 
+export function parsePastedJSONText(rawText) {
+  let text = rawText.trim();
+  text = text.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/, '');
+
+  const start = text.indexOf('[');
+  const end = text.lastIndexOf(']');
+  if (start === -1 || end === -1 || end < start) {
+    throw new Error('No JSON array found. Paste one question array and nothing else.');
+  }
+
+  text = text.slice(start, end + 1);
+
+  let questions;
+  try {
+    questions = JSON.parse(text);
+  } catch (error) {
+    throw new Error(`Invalid JSON syntax in the pasted array: ${error.message}`);
+  }
+
+  if (!Array.isArray(questions)) {
+    throw new Error('Expected a JSON array of questions.');
+  }
+  if (questions.length === 0) {
+    throw new Error('The JSON array contains no questions.');
+  }
+
+  questions.forEach((question, index) => {
+    const questionNumber = index + 1;
+    if (!question || typeof question !== 'object' || Array.isArray(question)) {
+      throw new Error(`Question ${questionNumber} must be a JSON object.`);
+    }
+    const expectedKeys = ['question', 'subject', 'options', 'correctAnswer', 'explanation'];
+    const actualKeys = Object.keys(question);
+    const hasExpectedKeys = expectedKeys.every(key => actualKeys.includes(key));
+    const hasOnlyExpectedKeys = actualKeys.every(key => expectedKeys.includes(key));
+    if (!hasExpectedKeys || !hasOnlyExpectedKeys) {
+      throw new Error(`Question ${questionNumber} must contain exactly these keys: ${expectedKeys.join(', ')}.`);
+    }
+    if (typeof question.question !== 'string' || typeof question.subject !== 'string') {
+      throw new Error(`Question ${questionNumber} must have string question and subject fields.`);
+    }
+    if (!Array.isArray(question.options) || question.options.length !== 4) {
+      throw new Error(`Question ${questionNumber} must have exactly 4 options.`);
+    }
+    if (question.options.some(option => typeof option !== 'string')) {
+      throw new Error(`Question ${questionNumber} must have 4 string options.`);
+    }
+    if (typeof question.explanation !== 'string') {
+      throw new Error(`Question ${questionNumber} must have a string explanation.`);
+    }
+
+    const answer = String(question.correctAnswer ?? '');
+    if (!/^[1-4]$/.test(answer)) {
+      throw new Error(`Question ${questionNumber} must have correctAnswer "1", "2", "3", or "4".`);
+    }
+
+    question.correctAnswer = answer;
+  });
+
+  return questions;
+}
+
 function sanitizeQuestion(q, defaultSubject, index, answerKeyMap) {
   const qNum = index + 1;
   const type = q.type || (q.options && q.options.length > 0 ? "MCQ" : "NUMERICAL");
@@ -141,14 +203,14 @@ export const SAMPLE_SIMPLE_JSON = `[
     "question": "What is the unit of electric current?",
     "subject": "Physics",
     "options": ["Volt", "Ampere", "Ohm", "Watt"],
-    "correctAnswer": 2,
+    "correctAnswer": "2",
     "explanation": "Electric current is measured in Amperes (A)."
   },
   {
     "question": "Which gas is released during photosynthesis by green plants?",
     "subject": "Biology",
     "options": ["Carbon Dioxide", "Nitrogen", "Oxygen", "Hydrogen"],
-    "correctAnswer": 3,
+    "correctAnswer": "3",
     "explanation": "Plants release Oxygen gas during photosynthesis."
   }
 ]`;
@@ -168,7 +230,7 @@ export const SAMPLE_ADVANCED_JSON = `{
             "to gain technological skills",
             "to develop industrial skills"
           ],
-          "correctAnswer": 1,
+          "correctAnswer": "1",
           "explanation": "Intelligence helps the child adapt and make appropriate decisions."
         }
       ]

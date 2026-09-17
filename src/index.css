@@ -36,6 +36,7 @@ body {
 
 /* Base Container */
 .app-container {
+  height: 100vh;
   min-height: 100vh;
   display: flex;
   flex-direction: column;
@@ -179,7 +180,7 @@ body {
 .exam-main-body {
   display: flex;
   flex: 1;
-  height: calc(100vh - 95px);
+  min-height: 0;
   overflow: hidden;
 }
 
@@ -189,7 +190,9 @@ body {
   flex-direction: column;
   background: #ffffff;
   border-right: 1px solid var(--nta-border);
-  overflow-y: auto;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
 }
 
 /* Question Header Bar */
@@ -225,6 +228,8 @@ body {
   padding: 20px 24px;
   flex: 1;
   overflow-y: auto;
+  min-height: 0;
+  scrollbar-gutter: stable;
 }
 
 .question-text-box {
@@ -381,6 +386,8 @@ body {
   flex-direction: column;
   border-left: 1px solid var(--nta-border);
   overflow-y: auto;
+  min-height: 0;
+  scrollbar-gutter: stable;
 }
 
 .candidate-profile-card {

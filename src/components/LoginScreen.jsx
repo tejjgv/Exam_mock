@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Award, User, BookOpen, Play, Upload, Code, Download, CheckCircle2, HelpCircle, Copy, X, FileText } from 'lucide-react';
 import { MOCK_EXAMS } from '../data/mockExams';
-import { parseCustomJSONTest, SAMPLE_SIMPLE_JSON, SAMPLE_ADVANCED_JSON } from '../utils/jsonTestParser';
+import { parseCustomJSONTest, parsePastedJSONText, SAMPLE_SIMPLE_JSON, SAMPLE_ADVANCED_JSON } from '../utils/jsonTestParser';
 
 const AI_PDF_PROMPT = `Extract all questions from the attached PDF question paper into a JSON array with this exact structure:
 
@@ -10,12 +10,23 @@ const AI_PDF_PROMPT = `Extract all questions from the attached PDF question pape
     "question": "Exact question text (include both English & regional language if bilingual)",
     "subject": "Subject Name (e.g. Child Development, Mathematics, Science, English)",
     "options": ["Option 1", "Option 2", "Option 3", "Option 4"],
-    "correctAnswer": "1", // Use "1", "2", "3", "4" or "A", "B", "C", "D" from answer key
-    "explanation": "Step-by-step solution if available"
+    "correctAnswer": "1",
+    "explanation": "Step-by-step solution if available, or an empty string"
   }
 ]
 
-Return ONLY valid JSON code block.`;
+Output rules:
+- Return ONE JSON array and nothing else. No prose before or after.
+- No markdown code fences, no trailing commas, no comments (// or /* */).
+- Every object must have exactly these keys: question, subject, options, correctAnswer, explanation.
+- "options" must always be an array of exactly 4 strings.
+- "correctAnswer" must be the string "1", "2", "3", or "4".
+- "explanation" must be a string; use "" if no solution is available.
+- Escape all newlines inside strings as \\n. Do not use literal line breaks.
+- Do not truncate. If the paper has N questions, return N objects.
+- End the output immediately after the closing ] with no extra characters.
+
+Return the JSON array now.`;
 
 export default function LoginScreen({ onStartExam }) {
   const [selectedExamId, setSelectedExamId] = useState(MOCK_EXAMS[0].id);
@@ -59,7 +70,7 @@ export default function LoginScreen({ onStartExam }) {
       return;
     }
     try {
-      const json = JSON.parse(customJsonText);
+      const json = parsePastedJSONText(customJsonText);
       const parsed = parseCustomJSONTest(json);
       setCustomExamObj(parsed);
     } catch (err) {
@@ -83,6 +94,20 @@ export default function LoginScreen({ onStartExam }) {
     navigator.clipboard.writeText(AI_PDF_PROMPT);
     setCopiedPrompt(true);
     setTimeout(() => setCopiedPrompt(false), 2000);
+  };
+
+  const handleOpenClaude = async () => {
+    const claudeWindow = window.open('https://claude.ai/new', '_blank', 'noopener,noreferrer');
+    try {
+      await navigator.clipboard.writeText(AI_PDF_PROMPT);
+      setCopiedPrompt(true);
+      setTimeout(() => setCopiedPrompt(false), 2000);
+    } catch (error) {
+      setJsonError("Claude was opened, but the prompt could not be copied automatically. Please copy it manually.");
+    }
+    if (!claudeWindow) {
+      setJsonError("The Claude tab was blocked by the browser. Please allow pop-ups and try again.");
+    }
   };
 
   const handleCopySample = () => {
@@ -287,6 +312,13 @@ export default function LoginScreen({ onStartExam }) {
                     >
                       <Copy size={12} /> {copiedPrompt ? "Copied!" : "Copy Prompt"}
                     </button>
+                    <button
+                      type="button"
+                      onClick={handleOpenClaude}
+                      style={{ background: '#d97757', color: 'white', border: 'none', padding: '4px 10px', borderRadius: '3px', cursor: 'pointer', fontSize: '11px', fontWeight: 600 }}
+                    >
+                      Open Claude + Copy
+                    </button>
                   </div>
                   <pre style={{ background: '#ffffff', border: '1px solid #d0e3f7', padding: '8px 10px', borderRadius: '4px', fontSize: '11px', color: '#333', whiteSpace: 'pre-wrap', maxHeight: '90px', overflowY: 'auto' }}>
                     {AI_PDF_PROMPT}
@@ -304,7 +336,7 @@ export default function LoginScreen({ onStartExam }) {
                 <div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
                     <label style={{ fontSize: '13px', fontWeight: 600, color: '#444' }}>
-                      Paste JSON Array or Object:
+                      Paste JSON Array:
                     </label>
                     <button 
                       type="button" 
@@ -312,6 +344,13 @@ export default function LoginScreen({ onStartExam }) {
                       style={{ background: 'none', border: 'none', color: '#337ab7', cursor: 'pointer', fontSize: '12px', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '4px' }}
                     >
                       <Copy size={13} /> {copiedPrompt ? "Prompt Copied!" : "Copy AI Prompt"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleOpenClaude}
+                      style={{ background: '#d97757', color: 'white', border: 'none', padding: '4px 10px', borderRadius: '3px', cursor: 'pointer', fontSize: '11px', fontWeight: 600 }}
+                    >
+                      Open Claude + Copy
                     </button>
                   </div>
 
@@ -324,7 +363,7 @@ export default function LoginScreen({ onStartExam }) {
     "question": "What is the speed of light in vacuum?",
     "subject": "Physics",
     "options": ["3 x 10^8 m/s", "3 x 10^6 m/s", "1.5 x 10^8 m/s", "300 m/s"],
-    "correctAnswer": 1,
+    "correctAnswer": "1",
     "explanation": "3 x 10^8 m/s in vacuum."
   }
 ]`}
@@ -441,7 +480,7 @@ export default function LoginScreen({ onStartExam }) {
                   <li><code>question</code> / <code>questionText</code>: Question statement (multiline bilingual English/Telugu text supported).</li>
                   <li><code>subject</code>: Subject name (e.g. Child Development, Mathematics, Science, Telugu, English).</li>
                   <li><code>options</code>: Array of 4 string choices.</li>
-                  <li><code>correctAnswer</code>: Accepts `"A"`, `"B"`, `"C"`, `"D"`, `"1"`, `"2"`, `"3"`, `"4"`, `0`, `1`, `2`, `3`.</li>
+                  <li><code>correctAnswer</code>: For pasted AI output, use the string `"1"`, `"2"`, `"3"`, or `"4"`.</li>
                   <li><code>passage</code> (optional): Reading comprehension or passage paragraph.</li>
                   <li><code>explanation</code> (optional): Detailed solution shown on the result page.</li>
                   <li><code>answerKey</code> (optional): Separate answer key object e.g. <code>{`{ "1": 1, "2": 2 }`}</code>.</li>
